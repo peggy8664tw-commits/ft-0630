@@ -1,0 +1,702 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI 工作站 - 提示詞庫</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Font Awesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- PapaParse for parsing Google Sheet CSV -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.2/papaparse.min.js"></script>
+    <!-- Google Font: Inter & Noto Sans TC -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+TC:wght@400;500;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', 'Noto Sans TC', sans-serif;
+            background-color: #f3f4f6;
+        }
+        /* Custom scrollbar for prompt text */
+        .prompt-preview::-webkit-scrollbar {
+            width: 4px;
+        }
+        .prompt-preview::-webkit-scrollbar-track {
+            background: #f1f1f1;
+            border-radius: 4px;
+        }
+        .prompt-preview::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 4px;
+        }
+        .prompt-preview::-webkit-scrollbar-thumb:hover {
+            background: #94a3b8;
+        }
+    </style>
+</head>
+<body class="bg-gray-100 min-h-screen pb-12 text-gray-800">
+
+    <!-- Top Header Navigation -->
+    <header class="bg-white shadow-sm border-b border-gray-200 sticky top-0 z-30">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+            <!-- Brand / Logo -->
+            <div class="flex items-center space-x-3">
+                <span class="text-2xl">🚀</span>
+                <h1 class="text-xl font-bold text-gray-900 tracking-tight">AI 工作站</h1>
+            </div>
+
+            <!-- Header Tabs -->
+            <nav class="flex space-x-2 bg-gray-100 p-1 rounded-xl">
+                <button class="flex items-center px-4 py-2 text-sm font-medium rounded-lg bg-indigo-600 text-white shadow-sm transition-all">
+                    <i class="fa-regular fa-folder-open mr-2"></i>
+                    單項提示詞
+                </button>
+                <button class="flex items-center px-4 py-2 text-sm font-medium rounded-lg text-gray-600 hover:text-gray-900 hover:bg-gray-200 transition-all">
+                    <i class="fa-solid fa-bolt text-yellow-500 mr-2"></i>
+                    流程提示詞
+                </button>
+                <button class="flex items-center px-4 py-2 text-sm font-medium rounded-lg text-gray-600 hover:text-gray-900 hover:bg-gray-200 transition-all">
+                    <i class="fa-regular fa-folder mr-2"></i>
+                    工作流檔案
+                </button>
+            </nav>
+        </div>
+    </header>
+
+    <!-- Main Container -->
+    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-6">
+
+        <!-- Search Bar Section -->
+        <div class="mb-5">
+            <div class="relative rounded-2xl shadow-sm">
+                <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-gray-400">
+                    <i class="fa-solid fa-magnifying-glass text-lg"></i>
+                </div>
+                <input type="text" id="searchInput" 
+                    placeholder="搜尋提示詞名稱、任務或內容關鍵字..." 
+                    class="block w-full pl-11 pr-4 py-3.5 bg-white border-0 rounded-2xl text-gray-900 shadow-sm ring-1 ring-inset ring-gray-200 placeholder:text-gray-400 focus:ring-2 focus:ring-indigo-500 text-sm sm:text-base outline-none transition-all">
+            </div>
+        </div>
+
+        <!-- Filter Chips Box -->
+        <div class="bg-white rounded-2xl p-5 shadow-sm border border-gray-100 mb-6 space-y-4">
+            
+            <!-- Category Filter: 主軸 -->
+            <div class="flex flex-wrap items-center gap-2">
+                <span class="text-xs font-semibold text-gray-400 w-12 flex-shrink-0">主軸</span>
+                <div class="flex flex-wrap gap-1.5 flex-1" id="categoryFilters">
+                    <!-- Dynamic rendering via JS -->
+                </div>
+            </div>
+
+            <div class="border-t border-gray-100 pt-3"></div>
+
+            <!-- Mode Filter: 模式 -->
+            <div class="flex flex-wrap items-center gap-2">
+                <span class="text-xs font-semibold text-gray-400 w-12 flex-shrink-0">模式</span>
+                <div class="flex flex-wrap gap-1.5 flex-1" id="modeFilters">
+                    <!-- Dynamic rendering via JS -->
+                </div>
+            </div>
+
+            <div class="border-t border-gray-100 pt-3"></div>
+
+            <!-- AI Tool Filter: AI 工具 -->
+            <div class="flex flex-wrap items-center gap-2">
+                <span class="text-xs font-semibold text-gray-400 w-12 flex-shrink-0">AI 工具</span>
+                <div class="flex flex-wrap gap-1.5 flex-1" id="toolFilters">
+                    <!-- Dynamic rendering via JS -->
+                </div>
+            </div>
+        </div>
+
+        <!-- Cards Header & Data Status -->
+        <div class="flex items-center justify-between mb-5 px-1">
+            <div class="flex items-center space-x-2">
+                <span class="text-sm font-semibold text-indigo-600" id="promptCount">共 0 個提示詞</span>
+                <span id="dataSourceBadge" class="text-xs px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-600 border border-emerald-200 flex items-center gap-1">
+                    <i class="fa-solid fa-circle-check text-[10px]"></i> 資料已連線
+                </span>
+            </div>
+            
+            <button id="reloadBtn" class="text-xs text-gray-500 hover:text-indigo-600 flex items-center gap-1 px-2.5 py-1.5 rounded-lg hover:bg-white border border-transparent hover:border-gray-200 transition-all">
+                <i class="fa-solid fa-arrows-rotate"></i> 重新載入試算表
+            </button>
+        </div>
+
+        <!-- Prompt Cards Grid -->
+        <div id="cardsGrid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+            <!-- Cards will be populated by JS -->
+        </div>
+
+        <!-- Empty State -->
+        <div id="emptyState" class="hidden text-center py-16 bg-white rounded-2xl border border-dashed border-gray-300">
+            <i class="fa-regular fa-folder-open text-4xl text-gray-300 mb-3"></i>
+            <p class="text-gray-500 font-medium">沒有找到符合條件的提示詞</p>
+            <button id="resetFiltersBtn" class="mt-3 px-4 py-2 text-xs font-medium text-indigo-600 bg-indigo-50 rounded-lg hover:bg-indigo-100 transition-all">
+                重設篩選條件
+            </button>
+        </div>
+
+    </main>
+
+    <!-- Prompt Detail Modal -->
+    <div id="promptModal" class="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+        <div class="bg-white rounded-2xl shadow-xl max-w-2xl w-full max-h-[90vh] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+            <!-- Modal Header -->
+            <div class="p-5 border-b border-gray-100 flex items-start justify-between bg-gradient-to-r from-indigo-50/50 to-pink-50/50">
+                <div>
+                    <span id="modalCategory" class="text-xs font-semibold text-indigo-600 block mb-1"></span>
+                    <h3 id="modalTitle" class="text-lg font-bold text-gray-900"></h3>
+                    <div id="modalBadges" class="flex flex-wrap gap-1.5 mt-2"></div>
+                </div>
+                <button id="closeModalBtn" class="text-gray-400 hover:text-gray-600 p-1.5 rounded-lg hover:bg-white/80 transition-all">
+                    <i class="fa-solid fa-xmark text-lg"></i>
+                </button>
+            </div>
+            <!-- Modal Body -->
+            <div class="p-5 overflow-y-auto flex-1">
+                <label class="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">提示詞內容 (Prompt Content)</label>
+                <div id="modalContent" class="bg-slate-50 p-4 rounded-xl border border-slate-200 text-sm text-slate-700 whitespace-pre-wrap font-mono leading-relaxed select-all">
+                </div>
+            </div>
+            <!-- Modal Footer -->
+            <div class="p-4 border-t border-gray-100 bg-gray-50 flex items-center justify-end gap-2">
+                <button id="modalCopyBtn" class="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-sm font-medium transition-all flex items-center gap-2 shadow-sm">
+                    <i class="fa-regular fa-copy"></i>
+                    複製 Prompt
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Edit Prompt Modal -->
+    <div id="editModal" class="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+        <div class="bg-white rounded-2xl shadow-xl max-w-2xl w-full max-h-[90vh] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+            <!-- Modal Header -->
+            <div class="p-5 border-b border-gray-100 flex items-center justify-between bg-gradient-to-r from-indigo-50/50 to-pink-50/50">
+                <div class="flex items-center space-x-2">
+                    <div class="w-8 h-8 rounded-lg bg-indigo-100 text-indigo-600 flex items-center justify-center">
+                        <i class="fa-solid fa-pen-to-square"></i>
+                    </div>
+                    <h3 class="text-lg font-bold text-gray-900">編輯提示詞</h3>
+                </div>
+                <button id="closeEditModalBtn" class="text-gray-400 hover:text-gray-600 p-1.5 rounded-lg hover:bg-white/80 transition-all">
+                    <i class="fa-solid fa-xmark text-lg"></i>
+                </button>
+            </div>
+            <!-- Modal Body -->
+            <div class="p-5 overflow-y-auto flex-1 space-y-4">
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-500 mb-1">標題</label>
+                        <input type="text" id="editTitle" class="w-full p-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-500 mb-1">副標題 (分類)</label>
+                        <input type="text" id="editCategory" class="w-full p-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-500 mb-1">主軸</label>
+                        <input type="text" id="editMainCategory" class="w-full p-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-500 mb-1">模式</label>
+                        <select id="editMode" class="w-full p-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                            <option value="AI 助理">AI 助理</option>
+                            <option value="AI 協做">AI 協做</option>
+                            <option value="AI 協思">AI 協思</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-semibold text-gray-500 mb-1">AI 工具 (以逗點隔開)</label>
+                    <input type="text" id="editTools" class="w-full p-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" placeholder="例如: ChatGPT, Gemini AI">
+                </div>
+
+                <div>
+                    <label class="block text-xs font-semibold text-gray-500 mb-1">提示詞內容 (Prompt Content)</label>
+                    <textarea id="editContent" rows="8" class="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl text-sm font-mono leading-relaxed focus:outline-none focus:ring-2 focus:ring-indigo-500"></textarea>
+                </div>
+            </div>
+            <!-- Modal Footer -->
+            <div class="p-4 border-t border-gray-100 bg-gray-50 flex items-center justify-between">
+                <a href="https://docs.google.com/spreadsheets/d/11UB-h7lZG8CKKMA98lx7GsY0-IFBd1ioXG_LPQ9CIec/edit?gid=1480282197#gid=1480282197" target="_blank" class="text-xs text-indigo-600 hover:underline flex items-center gap-1">
+                    <i class="fa-solid fa-arrow-up-right-from-square"></i> 開啟 Google 試算表原檔
+                </a>
+                <div class="flex items-center gap-2">
+                    <button id="cancelEditBtn" class="px-4 py-2 border border-gray-200 rounded-xl text-xs font-medium text-gray-600 hover:bg-gray-100 transition-all">
+                        取消
+                    </button>
+                    <button id="saveEditBtn" class="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-sm font-medium transition-all shadow-sm flex items-center gap-1.5">
+                        <i class="fa-solid fa-floppy-disk"></i>
+                        儲存變更
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Notification -->
+    <div id="toast" class="fixed bottom-6 right-6 bg-slate-900 text-white px-4 py-3 rounded-xl shadow-2xl flex items-center space-x-2 translate-y-20 opacity-0 transition-all duration-300 z-50 text-sm">
+        <i class="fa-solid fa-circle-check text-emerald-400"></i>
+        <span id="toastMsg">Prompt 已成功複製到剪貼簿！</span>
+    </div>
+
+    <script>
+        // Google Sheet URL provided by user
+        const GOOGLE_SHEET_CSV_URL = "https://docs.google.com/spreadsheets/d/11UB-h7lZG8CKKMA98lx7GsY0-IFBd1ioXG_LPQ9CIec/export?format=csv&gid=1480282197";
+        const GOOGLE_SHEET_EDIT_URL = "https://docs.google.com/spreadsheets/d/11UB-h7lZG8CKKMA98lx7GsY0-IFBd1ioXG_LPQ9CIec/edit?gid=1480282197#gid=1480282197";
+
+        // Fallback Dataset matching the exact screenshot items
+        const MOCK_PROMPTS = [
+            {
+                id: "049",
+                title: "049-線上課程",
+                category: "筆記整理",
+                mainCategory: "筆記",
+                mode: "AI 助理",
+                tools: ["ChatGPT", "Gemini AI"],
+                content: `【角色設定】
+你是一位專精於「學習科學」與「知識管理」的 AI 助教。擅長將混亂的課程投影影片（截圖 PDF）轉化為具備邏輯、易於日後複習的高價值筆記。
+
+【任務目標】
+請分析我上傳的 PDF 檔案（由線上課程截圖組成），執行 OCR 文字辨識並進行深度萃取。請針對每一組邏輯相關的內容，自動判斷最適合的整理格式：
+
+觀念/理論型內容：使用「黃金圈法則 (Why/How/What)」解析。`
+            },
+            {
+                id: "050",
+                title: "050-線上課程",
+                category: "筆記整理",
+                mainCategory: "筆記",
+                mode: "AI 助理",
+                tools: ["ChatGPT", "Gemini AI"],
+                content: `【角色設定】
+你是一位專精於「學習科學」與「知識管理」的 AI 助教。擅長將混亂的課程投影影片（截圖 PDF）轉化為具備邏輯、易於日後複習的高價值筆記。
+
+【任務目標】
+請分析我上傳的 PDF 檔案（由線上課程截圖組成），進行文字辨識與整理。請針對內容，自動判斷最適合的整理格式。
+
+並於最後一段，擷取職場可以應用的三個重點，以條列式來呈現。`
+            },
+            {
+                id: "051",
+                title: "051-長篇文章",
+                category: "筆記整理",
+                mainCategory: "筆記",
+                mode: "AI 協做",
+                tools: ["ChatGPT", "Gemini AI"],
+                content: `為這一篇長篇文章，進行以下四個步驟，每一個步驟都要提供給文章與標示出來
+
+第1、請為這篇長文件生成一份體短摘要。
+第2、請基於上一個摘要，不要遺漏任何專有名詞、數字或關鍵人物，重新生成一份摘要。
+第3、現在，請將摘要中每一句話都濃縮成更簡潔的表達，同時保留所有事實，讓它擴起來更像新聞標題。
+第4、最後，請確保摘要能獨立解釋所有提到的概念，不需參照原文。
+
+### 長文如下：`
+            },
+            {
+                id: "052",
+                title: "052-提取練習",
+                category: "筆記精煉",
+                mainCategory: "筆記",
+                mode: "AI 協思",
+                tools: ["ChatGPT", "Gemini AI", "Claude AI"],
+                content: `我剛讀完了關於 [填入具體段落標題] 的內容。現在請幫我進行深度研磨：
+
+1-底層邏輯拷問：針對這段內容的「運作原理」向我提問，測試我是否理解了「為什麼有效」，而非只是記住步驟。
+
+2-隱喻轉化：如果這段概念有複雜的故事，請幫我將其轉化為一個 50 字以內的「關鍵隱喻」或「原則案例」。
+
+3-邏輯連動：這段內容與附件中之前的 [填入章節]`
+            }
+        ];
+
+        // App State
+        let allPrompts = [];
+        let filteredPrompts = [];
+        let selectedCategory = "全部";
+        let selectedMode = "全部";
+        let selectedTool = "全部";
+        let searchQuery = "";
+        let currentEditId = null;
+
+        // Available Filter Options
+        const CATEGORIES = ["全部", "寫作", "心圖", "示範", "校正", "秘訣", "程式", "筆記", "貼文", "整理", "簡報"];
+        const MODES = ["全部", "AI 助理", "AI 協做", "AI 協思"];
+        const TOOLS = ["全部", "ChatGPT", "Gemini Canvas", "NotebookLM", "Gemini AI", "Claude AI"];
+
+        document.addEventListener("DOMContentLoaded", () => {
+            initFilters();
+            loadSheetData();
+
+            // Search input binding
+            document.getElementById("searchInput").addEventListener("input", (e) => {
+                searchQuery = e.target.value.trim().toLowerCase();
+                applyFilters();
+            });
+
+            // Reload button
+            document.getElementById("reloadBtn").addEventListener("click", () => {
+                loadSheetData();
+            });
+
+            // Reset filters
+            document.getElementById("resetFiltersBtn").addEventListener("click", () => {
+                selectedCategory = "全部";
+                selectedMode = "全部";
+                selectedTool = "全部";
+                searchQuery = "";
+                document.getElementById("searchInput").value = "";
+                renderFilterButtons();
+                applyFilters();
+            });
+
+            // Modal Close
+            document.getElementById("closeModalBtn").addEventListener("click", closeModal);
+            document.getElementById("promptModal").addEventListener("click", (e) => {
+                if (e.target.id === "promptModal") closeModal();
+            });
+
+            // Edit Modal Bindings
+            document.getElementById("closeEditModalBtn").addEventListener("click", closeEditModal);
+            document.getElementById("cancelEditBtn").addEventListener("click", closeEditModal);
+            document.getElementById("saveEditBtn").addEventListener("click", savePromptEdit);
+            document.getElementById("editModal").addEventListener("click", (e) => {
+                if (e.target.id === "editModal") closeEditModal();
+            });
+        });
+
+        function loadSheetData() {
+            const badge = document.getElementById("dataSourceBadge");
+            badge.className = "text-xs px-2.5 py-0.5 rounded-full bg-amber-50 text-amber-600 border border-amber-200 flex items-center gap-1";
+            badge.innerHTML = `<i class="fa-solid fa-spinner fa-spin text-[10px]"></i> 讀取 Google Sheet 中...`;
+
+            Papa.parse(GOOGLE_SHEET_CSV_URL, {
+                download: true,
+                header: true,
+                skipEmptyLines: true,
+                complete: function(results) {
+                    if (results.data && results.data.length > 0) {
+                        try {
+                            const parsedPrompts = results.data.map((row, index) => {
+                                // Dynamic column keys matching
+                                const title = row["標題"] || row["名稱"] || row["Title"] || row["prompt_name"] || `提示詞 ${index + 1}`;
+                                const category = row["副標題"] || row["分類"] || row["SubCategory"] || "筆記整理";
+                                const mainCategory = row["主軸"] || row["Category"] || "筆記";
+                                const mode = row["模式"] || row["Mode"] || "AI 助理";
+                                const toolsRaw = row["AI工具"] || row["AI 工具"] || row["Tools"] || "ChatGPT, Gemini AI";
+                                const content = row["提示詞"] || row["內容"] || row["Prompt"] || row["Content"] || "";
+
+                                const tools = Array.isArray(toolsRaw) 
+                                    ? toolsRaw 
+                                    : toolsRaw.split(/[,/，]/).map(t => t.trim()).filter(Boolean);
+
+                                return {
+                                    id: String(index + 1).padStart(3, '0'),
+                                    title,
+                                    category,
+                                    mainCategory,
+                                    mode,
+                                    tools: tools.length > 0 ? tools : ["ChatGPT", "Gemini AI"],
+                                    content: content || "無提示詞內容"
+                                };
+                            }).filter(item => item.content.length > 0 || item.title);
+
+                            if (parsedPrompts.length > 0) {
+                                allPrompts = parsedPrompts;
+                                badge.className = "text-xs px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-600 border border-emerald-200 flex items-center gap-1";
+                                badge.innerHTML = `<i class="fa-solid fa-circle-check text-[10px]"></i> 資料來源：Google Sheet`;
+                            } else {
+                                useMockData();
+                            }
+                        } catch (err) {
+                            console.warn("解析 Google Sheet 發生錯誤，使用備用資料", err);
+                            useMockData();
+                        }
+                    } else {
+                        useMockData();
+                    }
+                    applyFilters();
+                },
+                error: function(err) {
+                    console.warn("讀取 Google Sheet 失敗（可能因跨域限制），使用備用展示資料：", err);
+                    useMockData();
+                    applyFilters();
+                }
+            });
+        }
+
+        function useMockData() {
+            allPrompts = [...MOCK_PROMPTS];
+            const badge = document.getElementById("dataSourceBadge");
+            badge.className = "text-xs px-2.5 py-0.5 rounded-full bg-indigo-50 text-indigo-600 border border-indigo-200 flex items-center gap-1";
+            badge.innerHTML = `<i class="fa-solid fa-database text-[10px]"></i> 示範資料庫 (4筆)`;
+        }
+
+        function initFilters() {
+            renderFilterButtons();
+        }
+
+        function renderFilterButtons() {
+            // Category Buttons
+            const catContainer = document.getElementById("categoryFilters");
+            catContainer.innerHTML = CATEGORIES.map(cat => `
+                <button onclick="setFilter('category', '${cat}')" class="px-3 py-1 rounded-full text-xs font-medium transition-all ${
+                    selectedCategory === cat 
+                        ? 'bg-purple-100 text-purple-700 font-semibold ring-1 ring-purple-300' 
+                        : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                }">
+                    ${cat}
+                </button>
+            `).join("");
+
+            // Mode Buttons
+            const modeContainer = document.getElementById("modeFilters");
+            modeContainer.innerHTML = MODES.map(m => `
+                <button onclick="setFilter('mode', '${m}')" class="px-3 py-1 rounded-full text-xs font-medium transition-all ${
+                    selectedMode === m 
+                        ? 'bg-purple-100 text-purple-700 font-semibold ring-1 ring-purple-300' 
+                        : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                }">
+                    ${m}
+                </button>
+            `).join("");
+
+            // Tool Buttons
+            const toolContainer = document.getElementById("toolFilters");
+            toolContainer.innerHTML = TOOLS.map(t => `
+                <button onclick="setFilter('tool', '${t}')" class="px-3 py-1 rounded-full text-xs font-medium transition-all ${
+                    selectedTool === t 
+                        ? 'bg-purple-100 text-purple-700 font-semibold ring-1 ring-purple-300' 
+                        : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                }">
+                    ${t}
+                </button>
+            `).join("");
+        }
+
+        function setFilter(type, value) {
+            if (type === 'category') selectedCategory = value;
+            if (type === 'mode') selectedMode = value;
+            if (type === 'tool') selectedTool = value;
+
+            renderFilterButtons();
+            applyFilters();
+        }
+
+        function applyFilters() {
+            filteredPrompts = allPrompts.filter(item => {
+                // Category match
+                const matchCat = (selectedCategory === "全部") || 
+                    (item.mainCategory === selectedCategory) || 
+                    (item.category && item.category.includes(selectedCategory));
+
+                // Mode match
+                const matchMode = (selectedMode === "全部") || (item.mode === selectedMode);
+
+                // Tool match
+                const matchTool = (selectedTool === "全部") || 
+                    (item.tools && item.tools.some(t => t.includes(selectedTool)));
+
+                // Search Query match
+                const matchSearch = !searchQuery || 
+                    item.title.toLowerCase().includes(searchQuery) ||
+                    item.category.toLowerCase().includes(searchQuery) ||
+                    item.content.toLowerCase().includes(searchQuery) ||
+                    (item.mode && item.mode.toLowerCase().includes(searchQuery));
+
+                return matchCat && matchMode && matchTool && matchSearch;
+            });
+
+            renderCards();
+        }
+
+        function renderCards() {
+            const grid = document.getElementById("cardsGrid");
+            const emptyState = document.getElementById("emptyState");
+            const countElem = document.getElementById("promptCount");
+
+            countElem.innerText = `共 ${filteredPrompts.length} 個提示詞`;
+
+            if (filteredPrompts.length === 0) {
+                grid.innerHTML = "";
+                emptyState.classList.remove("hidden");
+                return;
+            }
+
+            emptyState.classList.add("hidden");
+
+            grid.innerHTML = filteredPrompts.map(prompt => {
+                // Generate Tag HTML
+                const tagsHtml = `
+                    <span class="px-2 py-0.5 rounded-full text-[11px] font-medium bg-purple-50 text-purple-600">${prompt.mainCategory || '筆記'}</span>
+                    <span class="px-2 py-0.5 rounded-full text-[11px] font-medium bg-indigo-50 text-indigo-600">${prompt.mode || 'AI 助理'}</span>
+                    ${prompt.tools.map(tool => `
+                        <span class="px-2 py-0.5 rounded-full text-[11px] font-medium bg-blue-50 text-blue-600">${tool}</span>
+                    `).join('')}
+                `;
+
+                return `
+                    <div class="bg-white rounded-2xl border border-gray-200/80 shadow-sm hover:shadow-md transition-all duration-200 flex flex-col justify-between overflow-hidden relative group">
+                        
+                        <!-- Top Accent Line (Pink gradient like screenshot) -->
+                        <div class="h-1 w-full bg-gradient-to-r from-pink-400 via-rose-300 to-indigo-400"></div>
+
+                        <div class="p-4 flex-1 flex flex-col">
+                            <!-- Tags Bar -->
+                            <div class="flex flex-wrap gap-1 mb-3">
+                                ${tagsHtml}
+                            </div>
+
+                            <!-- Category / Subtitle -->
+                            <div class="text-xs text-gray-400 font-medium mb-0.5">${prompt.category || '筆記整理'}</div>
+
+                            <!-- Title (Clickable for Detail Modal) -->
+                            <h2 onclick="openModal('${prompt.id}')" class="text-lg font-bold text-gray-900 mb-3 tracking-tight cursor-pointer hover:text-indigo-600 transition-colors" title="點擊檢視完整內容">${prompt.title}</h2>
+
+                            <!-- Content Preview (Clickable for Detail Modal) -->
+                            <div onclick="openModal('${prompt.id}')" class="prompt-preview bg-slate-50/70 p-3 rounded-xl border border-slate-100 text-xs text-slate-600 font-sans leading-relaxed flex-1 overflow-y-auto max-h-56 mb-4 whitespace-pre-wrap select-text cursor-pointer hover:bg-slate-100/80 transition-colors" title="點擊檢視完整內容">
+                                ${escapeHtml(prompt.content)}
+                            </div>
+                        </div>
+
+                        <!-- Card Footer Action Buttons -->
+                        <div class="px-4 pb-4 pt-0 flex items-center gap-2">
+                            <button onclick="copyPrompt('${prompt.id}')" 
+                                class="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white font-medium text-xs py-2.5 px-3 rounded-xl shadow-sm transition-all duration-150 flex items-center justify-center gap-1.5 active:scale-[0.98]">
+                                <i class="fa-regular fa-copy text-xs"></i>
+                                複製 Prompt
+                            </button>
+                            
+                            <button onclick="openEditModal('${prompt.id}')" 
+                                title="線上編輯此提示詞內容" 
+                                class="p-2.5 bg-gray-50 hover:bg-indigo-50 text-gray-500 hover:text-indigo-600 rounded-xl border border-gray-200/80 hover:border-indigo-200 transition-all active:scale-[0.98] flex items-center justify-center">
+                                <i class="fa-solid fa-pen text-xs"></i>
+                            </button>
+                        </div>
+                    </div>
+                `;
+            }).join("");
+        }
+
+        function openModal(id) {
+            const prompt = allPrompts.find(p => p.id === id);
+            if (!prompt) return;
+
+            document.getElementById("modalTitle").innerText = prompt.title;
+            document.getElementById("modalCategory").innerText = prompt.category || prompt.mainCategory;
+            document.getElementById("modalContent").innerText = prompt.content;
+
+            // Badges
+            const modalBadges = document.getElementById("modalBadges");
+            modalBadges.innerHTML = `
+                <span class="px-2.5 py-1 rounded-full text-xs font-medium bg-purple-50 text-purple-600">${prompt.mainCategory || '筆記'}</span>
+                <span class="px-2.5 py-1 rounded-full text-xs font-medium bg-indigo-50 text-indigo-600">${prompt.mode || 'AI 助理'}</span>
+                ${prompt.tools.map(t => `<span class="px-2.5 py-1 rounded-full text-xs font-medium bg-blue-50 text-blue-600">${t}</span>`).join('')}
+            `;
+
+            // Copy button inside modal
+            const modalCopyBtn = document.getElementById("modalCopyBtn");
+            modalCopyBtn.onclick = () => copyPrompt(prompt.id);
+
+            document.getElementById("promptModal").classList.remove("hidden");
+        }
+
+        function closeModal() {
+            document.getElementById("promptModal").classList.add("hidden");
+        }
+
+        function openEditModal(id) {
+            const prompt = allPrompts.find(p => p.id === id);
+            if (!prompt) return;
+
+            currentEditId = id;
+            document.getElementById("editTitle").value = prompt.title || "";
+            document.getElementById("editCategory").value = prompt.category || "";
+            document.getElementById("editMainCategory").value = prompt.mainCategory || "";
+            document.getElementById("editMode").value = prompt.mode || "AI 助理";
+            document.getElementById("editTools").value = (prompt.tools || []).join(", ");
+            document.getElementById("editContent").value = prompt.content || "";
+
+            document.getElementById("editModal").classList.remove("hidden");
+        }
+
+        function closeEditModal() {
+            document.getElementById("editModal").classList.add("hidden");
+            currentEditId = null;
+        }
+
+        function savePromptEdit() {
+            if (!currentEditId) return;
+
+            const prompt = allPrompts.find(p => p.id === currentEditId);
+            if (!prompt) return;
+
+            // 更新當前 prompt 屬性
+            prompt.title = document.getElementById("editTitle").value.trim() || prompt.title;
+            prompt.category = document.getElementById("editCategory").value.trim() || prompt.category;
+            prompt.mainCategory = document.getElementById("editMainCategory").value.trim() || prompt.mainCategory;
+            prompt.mode = document.getElementById("editMode").value;
+            
+            const rawTools = document.getElementById("editTools").value;
+            prompt.tools = rawTools.split(/[,/，]/).map(t => t.trim()).filter(Boolean);
+            if (prompt.tools.length === 0) prompt.tools = ["ChatGPT"];
+
+            prompt.content = document.getElementById("editContent").value;
+
+            // 重新套用篩選並更新畫面
+            applyFilters();
+            closeEditModal();
+            showToast(`已成功修改：「${prompt.title}」`);
+        }
+
+        function copyPrompt(id) {
+            const prompt = allPrompts.find(p => p.id === id);
+            if (!prompt) return;
+
+            // Use execCommand for iframe compatibility
+            const textarea = document.createElement("textarea");
+            textarea.value = prompt.content;
+            textarea.style.position = "fixed";
+            textarea.style.opacity = "0";
+            document.body.appendChild(textarea);
+            textarea.select();
+            
+            try {
+                document.execCommand('copy');
+                showToast(`已成功複製：「${prompt.title}」`);
+            } catch (err) {
+                console.error("複製失敗:", err);
+            } finally {
+                document.body.removeChild(textarea);
+            }
+        }
+
+        function showToast(message) {
+            const toast = document.getElementById("toast");
+            const toastMsg = document.getElementById("toastMsg");
+            toastMsg.innerText = message;
+            
+            toast.classList.remove("translate-y-20", "opacity-0");
+            toast.classList.add("translate-y-0", "opacity-100");
+
+            setTimeout(() => {
+                toast.classList.remove("translate-y-0", "opacity-100");
+                toast.classList.add("translate-y-20", "opacity-0");
+            }, 2500);
+        }
+
+        function escapeHtml(str) {
+            return str
+                .replace(/&/g, "&amp;")
+                .replace(/</g, "&lt;")
+                .replace(/>/g, "&gt;")
+                .replace(/"/g, "&quot;")
+                .replace(/'/g, "&#039;");
+        }
+    </script>
+</body>
+</html>
